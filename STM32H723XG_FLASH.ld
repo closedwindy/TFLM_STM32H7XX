@@ -230,6 +230,16 @@ SECTIONS
   PROVIDE( __bss_start = __tbss_start );
   PROVIDE( __bss_size = __bss_end - __bss_start );
 
+  .ram_d1 (NOLOAD) : ALIGN(4)
+  {
+    . = ALIGN(4);
+    _sram_d1 = .;       /* 符号：RAM_D1 起始地址 */
+    *(.ram_d1)          /* 收集所有标记为 .ram_d1 的变量 */
+    *(.ram_d1*)         /* 收集所有标记为 .ram_d1* 的变量 */
+    . = ALIGN(4);
+    _eram_d1 = .;       /* 符号：RAM_D1 结束地址 */
+  } >RAM_D1
+
   /* User_heap_stack section, used to check that there is enough RAM left */
   ._user_heap_stack (NOLOAD) :
   {
