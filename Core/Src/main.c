@@ -57,7 +57,6 @@ static void MPU_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-int8_t a[4]= {125, 120, 115, 110};
 int8_t res=0;
 /* USER CODE END 0 */
 
@@ -101,9 +100,10 @@ int main(void)
     Error_Handler();
   }
 
+  int8_t a[4]= {125, 120, 115, 110};
 
   res=AI_Inference(a);
-  HAL_Delay(5000);
+  HAL_Delay(1000);
   printf("%d\n",res);
 
   /* USER CODE END 2 */
