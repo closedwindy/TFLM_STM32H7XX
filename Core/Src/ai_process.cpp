@@ -4,6 +4,7 @@
 
 #include "ai_process.h"
 #include "model.h"
+#include "usart.h"
 constexpr int kTensorArenaSize = 180 * 1024;
 
 tflite::MicroMutableOpResolver<5> resolver;
@@ -11,60 +12,103 @@ __attribute__((section(".ram_d1")))
 uint8_t tensor_arena[kTensorArenaSize];
 tflite::MicroInterpreter* interpreter = nullptr;
 const tflite::Model* model = nullptr;
-
 TfLiteStatus InitTfLM() {
-        TfLiteStatus status = resolver.AddFullyConnected();
+
+        TfLiteStatus status;
+
+        status = resolver.AddFullyConnected();
+        if (status != kTfLiteOk) return status;
+        status = resolver.AddQuantize();      // 量化算子
+        if (status != kTfLiteOk) return status;
+        status = resolver.AddDequantize();    // 反量化算子
+        if (status != kTfLiteOk) return status;
+        status = resolver.AddReshape();       // 形状变换（如果有）
         if (status != kTfLiteOk) return status;
 
+        model = tflite::GetModel(motor_ff_controller_int8_io_tflite);
 
-        const tflite::Model* model = tflite::GetModel(motor_ff_controller_tflite);
+        if (model == nullptr) {
+                return kTfLiteError;
+        }
 
         if (model->version() != TFLITE_SCHEMA_VERSION) {
                 return kTfLiteError;
         }
 
-
+        // 创建解释器
+        // 注意：MicroInterpreter 内部会保存 pointer，所以 model 和 tensor_arena 必须在整个生命周期内有效
         static tflite::MicroInterpreter static_interpreter(
             model,
             resolver,
             tensor_arena,
-            sizeof(tensor_arena)
+            kTensorArenaSize
         );
+
         interpreter = &static_interpreter;
 
+        // 分配张量内存
         status = interpreter->AllocateTensors();
         if (status != kTfLiteOk) {
-
+                // 如果失败，通常是 tensor_arena 太小或者算子没注册对
+                HAL_UART_Transmit(&huart3, (uint8_t*)"AllocateTensors Failed\r\n", 24, 100);
                 return status;
         }
 
+        // 验证输入输出维度是否符合预期
+        // TfLiteTensor* input_tensor = interpreter->input(0);
+        // if (input_tensor->dims->data[1] != 4) { // 假设形状是 [1, 4]
+        //         HAL_UART_Transmit(&huart3, (uint8_t*)"Input Dim Mismatch\r\n", 20, 100);
+        // }
+
         return kTfLiteOk;
 }
-float AI_Inference(const float* input_data) {
+// TfLiteStatus InitTfLM() {
+//         TfLiteStatus status = resolver.AddFullyConnected();
+//         if (status != kTfLiteOk) return status;
+//
+//
+//         const tflite::Model* model = tflite::GetModel(motor_ff_controller_tflite);
+//
+//         if (model->version() != TFLITE_SCHEMA_VERSION) {
+//                 return kTfLiteError;
+//         }
+//
+//
+//         static tflite::MicroInterpreter static_interpreter(
+//             model,
+//             resolver,
+//             tensor_arena,
+//             sizeof(tensor_arena)
+//         );
+//         interpreter = &static_interpreter;
+//
+//         status = interpreter->AllocateTensors();
+//         if (status != kTfLiteOk) {
+//
+//                 return status;
+//         }
+//
+//         return kTfLiteOk;
+// }
+int8_t AI_Inference(const int8_t* input_data) {
         if (interpreter == nullptr) {
                 return 0.0f; // 或者处理错误
         }
 
-        // 1. 获取输入张量
+        // 获取输入张量
         // 模型输入形状是 [1, 4]，TFLM 展平为一维访问
         TfLiteTensor* input_tensor = interpreter->input(0);
 
         // 安全性检查：确保输入尺寸匹配
-        if (input_tensor->bytes != 4 * sizeof(float)) {
-                // 处理错误：输入尺寸不匹配 (可能是量化模型？如果是int8模型，这里需要转换)
-                // 假设你的模型是 float32 输入
+        if (input_tensor->bytes != 4 * sizeof(int8_t)) {
                 return 0.0f;
         }
 
-        // 2. 填充输入数据
-        // 直接拷贝内存，效率最高
-        // 输入是 float32 类型
-        float* input_ptr = input_tensor->data.f;
+
+        int8_t* input_ptr = input_tensor->data.int8;
         for (int i = 0; i < 4; i++) {
                 input_ptr[i] = input_data[i];
         }
-        // 或者直接用 memcpy:
-        // memcpy(input_ptr, input_data, 4 * sizeof(float));
 
         // 3. 执行推理 (Invoke)
         TfLiteStatus invoke_status = interpreter->Invoke();
@@ -73,22 +117,19 @@ float AI_Inference(const float* input_data) {
                 return 0.0f;
         }
 
-        // 4. 获取输出数据
+        // 获取输出数据
         TfLiteTensor* output_tensor = interpreter->output(0);
         // 模型输出形状是 [1, 1]
-        float result = output_tensor->data.f[0];
+        float result = output_tensor->data.int8[0];
 
         return result;
 }
 extern "C" void DebugLog(const char* s) {
-        // 方案 A: 简单使用 printf (需要重定向 stdout 到串口，通常在 syscalls.c 中完成)
-        // 如果你的 syscalls.c 已经重定向了 _write，直接用这个：
-        printf("%s", s);
 
-        // 方案 B: 如果 printf 没重定向，直接使用 HAL (取消下面注释并修改句柄)
-        /*
+
+
         if (s != NULL) {
-            HAL_UART_Transmit(&huart1, (uint8_t*)s, strlen(s), 100);
+            HAL_UART_Transmit(&huart3, (uint8_t*)s, strlen(s), 100);
         }
-        */
+
 }

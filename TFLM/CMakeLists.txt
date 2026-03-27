@@ -40,6 +40,7 @@ target_include_directories(tflm PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cmsis_nn
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cmsis/CMSIS/Core/Include
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/flatbuffers/include
+
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/kissfft
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gemmlowp
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ruy

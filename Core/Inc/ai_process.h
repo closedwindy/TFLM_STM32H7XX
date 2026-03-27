@@ -9,7 +9,7 @@ extern "C" {
 
         TfLiteStatus InitTfLM(void);
 
-        float AI_Inference(const float* input_data);
+        int8_t AI_Inference(const int8_t* input_data);
 
 #ifdef __cplusplus
 } // extern "C"

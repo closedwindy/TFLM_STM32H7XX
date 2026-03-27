@@ -269,6 +269,11 @@ TfLiteStatus ParseOpDataTfLite(const Operator* op, BuiltinOperator op_type,
       return ParseDiv(op, error_reporter, allocator, builtin_data);
     }
 
+    case BuiltinOperator_DYNAMIC_UPDATE_SLICE: {
+      return ParseDynamicUpdateSlice(op, error_reporter, allocator,
+                                     builtin_data);
+    }
+
     case BuiltinOperator_ELU: {
       return ParseElu(op, error_reporter, allocator, builtin_data);
     }
@@ -470,12 +475,20 @@ TfLiteStatus ParseOpDataTfLite(const Operator* op, BuiltinOperator op_type,
                                         builtin_data);
     }
 
+    case BuiltinOperator_REVERSE_V2: {
+      return ParseReverseV2(op, error_reporter, allocator, builtin_data);
+    }
+
     case BuiltinOperator_ROUND: {
       return ParseRound(op, error_reporter, allocator, builtin_data);
     }
 
     case BuiltinOperator_RSQRT: {
       return ParseRsqrt(op, error_reporter, allocator, builtin_data);
+    }
+
+    case BuiltinOperator_SELECT: {
+      return ParseSelect(op, error_reporter, allocator, builtin_data);
     }
 
     case BuiltinOperator_SELECT_V2: {
@@ -983,7 +996,6 @@ TfLiteStatus ParseOpDataTfLite(const Operator* op, BuiltinOperator op_type,
     case BuiltinOperator_COS:
     case BuiltinOperator_CUSTOM:
     case BuiltinOperator_DENSIFY:
-    case BuiltinOperator_DYNAMIC_UPDATE_SLICE:
     case BuiltinOperator_EQUAL:
     case BuiltinOperator_HASHTABLE_FIND:
     case BuiltinOperator_HASHTABLE_IMPORT:
@@ -996,7 +1008,6 @@ TfLiteStatus ParseOpDataTfLite(const Operator* op, BuiltinOperator op_type,
     case BuiltinOperator_RELU_N1_TO_1:
     case BuiltinOperator_RELU_0_TO_1:
     case BuiltinOperator_SCATTER_ND:
-    case BuiltinOperator_SELECT:
     case BuiltinOperator_SLICE:
     case BuiltinOperator_TILE:
     case BuiltinOperator_TOPK_V2:
@@ -1006,7 +1017,6 @@ TfLiteStatus ParseOpDataTfLite(const Operator* op, BuiltinOperator op_type,
     case BuiltinOperator_REAL:
     case BuiltinOperator_RFFT2D:
     case BuiltinOperator_SEGMENT_SUM:
-    case BuiltinOperator_REVERSE_V2:
     case BuiltinOperator_UNSORTED_SEGMENT_MAX:
     case BuiltinOperator_UNSORTED_SEGMENT_MIN:
     case BuiltinOperator_UNSORTED_SEGMENT_PROD:
@@ -1084,6 +1094,12 @@ TfLiteStatus ConvertTensorType(TensorType tensor_type, TfLiteType* type,
       return kTfLiteOk;
     case TensorType_INT4:
       *type = kTfLiteInt4;
+      return kTfLiteOk;
+    case TensorType_INT2:
+      *type = kTfLiteInt2;
+      return kTfLiteOk;
+    case TensorType_UINT4:
+      *type = kTfLiteUInt4;
       return kTfLiteOk;
     default:
       *type = kTfLiteNoType;
@@ -1460,6 +1476,14 @@ TfLiteStatus ParseDiv(const Operator* op, ErrorReporter* error_reporter,
         ConvertActivation(schema_params->fused_activation_function());
   }
   *builtin_data = params.release();
+  return kTfLiteOk;
+}
+
+// We have this parse function instead of directly returning kTfLiteOk from the
+// switch-case in ParseOpData because this function is used as part of the
+// selective registration for the OpResolver implementation in micro.
+TfLiteStatus ParseDynamicUpdateSlice(const Operator*, ErrorReporter*,
+                                     BuiltinDataAllocator*, void**) {
   return kTfLiteOk;
 }
 
@@ -2470,6 +2494,14 @@ TfLiteStatus ParseStablehloCase(const Operator* op,
 // We have this parse function instead of directly returning kTfLiteOk from the
 // switch-case in ParseOpData because this function is used as part of the
 // selective registration for the OpResolver implementation in micro.
+TfLiteStatus ParseReverseV2(const Operator*, ErrorReporter*,
+                            BuiltinDataAllocator*, void**) {
+  return kTfLiteOk;
+}
+
+// We have this parse function instead of directly returning kTfLiteOk from the
+// switch-case in ParseOpData because this function is used as part of the
+// selective registration for the OpResolver implementation in micro.
 TfLiteStatus ParseRound(const Operator*, ErrorReporter*, BuiltinDataAllocator*,
                         void**) {
   return kTfLiteOk;
@@ -2480,6 +2512,14 @@ TfLiteStatus ParseRound(const Operator*, ErrorReporter*, BuiltinDataAllocator*,
 // selective registration for the OpResolver implementation in micro.
 TfLiteStatus ParseRsqrt(const Operator*, ErrorReporter*, BuiltinDataAllocator*,
                         void**) {
+  return kTfLiteOk;
+}
+
+// We have this parse function instead of directly returning kTfLiteOk from the
+// switch-case in ParseOpData because this function is used as part of the
+// selective registration for the OpResolver implementation in micro.
+TfLiteStatus ParseSelect(const Operator*, ErrorReporter*, BuiltinDataAllocator*,
+                         void**) {
   return kTfLiteOk;
 }
 

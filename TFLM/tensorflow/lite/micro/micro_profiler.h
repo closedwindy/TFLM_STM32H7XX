@@ -66,7 +66,6 @@ class MicroProfiler : public MicroProfilerInterface {
   void LogTicksPerTagCsv();
 
  private:
- #if defined(TF_LITE_PROFILER_WITH_BUFFER)
   // Maximum number of events that this class can keep track of. The
   // MicroProfiler will abort if AddEvent is called more than kMaxEvents number
   // of times. Increase this number if you need more events.
@@ -75,9 +74,8 @@ class MicroProfiler : public MicroProfilerInterface {
   const char* tags_[kMaxEvents];
   uint32_t start_ticks_[kMaxEvents];
   uint32_t end_ticks_[kMaxEvents];
-#endif
   int num_events_ = 0;
-#if defined(TF_LITE_PROFILER_WITH_BUFFER)
+
   struct TicksPerTag {
     const char* tag;
     uint32_t ticks;
@@ -85,8 +83,7 @@ class MicroProfiler : public MicroProfilerInterface {
   // In practice, the number of tags will be much lower than the number of
   // events. But it is theoretically possible that each event to be unique and
   // hence we allow total_ticks_per_tag to have kMaxEvents entries.
-  TicksPerTag total_ticks_per_tag[kMaxEvents] = {};
-#endif
+  TicksPerTag total_ticks_per_tag_[kMaxEvents] = {};
 
   int FindExistingOrNextPosition(const char* tag_name);
 
