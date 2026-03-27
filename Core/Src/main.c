@@ -94,15 +94,12 @@ int main(void)
   MX_GPIO_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  if (InitTfLM() != kTfLiteOk) {
     HAL_GPIO_WritePin(GPIOE, GPIO_PIN_1, GPIO_PIN_SET);
 
-    Error_Handler();
-  }
+
 
   int8_t a[4]= {125, 120, 115, 110};
 
-  res=AI_Inference(a);
   HAL_Delay(1000);
   printf("%d\n",res);
 
