@@ -39,10 +39,9 @@ enable_language(C ASM)
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME}
         Core/Src/ai_process.cpp
-        Core/Inc/ai_process.h
         Core/Src/Debug_msg.c
-        Core/Inc/Debug_msg.h
-        )
+        Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h
+)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

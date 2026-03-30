@@ -102,5 +102,6 @@ else()
 endif()
 
 target_link_libraries(tflm PUBLIC m)
+target_link_libraries(tflm PUBLIC stm32cubemx)
 
 message(STATUS "TFLM Library configured with CMSIS-NN")

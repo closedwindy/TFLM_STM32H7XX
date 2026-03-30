@@ -26,6 +26,8 @@ limitations under the License.
 
 #include "tensorflow/lite/micro/micro_time.h"
 
+#include "../../../../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+
 #if defined(TF_LITE_USE_CTIME)
 #include <ctime>
 #endif
@@ -38,13 +40,16 @@ namespace tflite {
 // for a platform to support Tensorflow Lite for Microcontrollers profiling.
 // This returns 0 by default because timing is an optional feature that builds
 // without errors on platforms that do not need it.
-uint32_t ticks_per_second() { return 0; }
+uint32_t ticks_per_second() {
+
+    return 1000;
+}
 
 // Reference implementation of the GetCurrentTimeTicks() function that's
 // required for a platform to support Tensorflow Lite for Microcontrollers
 // profiling. This returns 0 by default because timing is an optional feature
 // that builds without errors on platforms that do not need it.
-uint32_t GetCurrentTimeTicks() { return 0; }
+uint32_t GetCurrentTimeTicks() { return HAL_GetTick(); }
 
 #else  // defined(TF_LITE_USE_CTIME)
 
