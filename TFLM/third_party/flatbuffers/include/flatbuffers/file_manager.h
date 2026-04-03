@@ -17,52 +17,30 @@
 #ifndef FLATBUFFERS_FILE_MANAGER_H_
 #define FLATBUFFERS_FILE_MANAGER_H_
 
-#include <cstddef>
 #include <set>
 #include <string>
+
+#include "flatbuffers/util.h"
 
 namespace flatbuffers {
 
 // A File interface to write data to file by default or
 // save only file names
-class FileSaver {
+class FileManager {
  public:
-  FileSaver() = default;
-  virtual ~FileSaver() = default;
+  FileManager() = default;
+  virtual ~FileManager() = default;
 
-  virtual bool SaveFile(const char* name, const char* buf, size_t len,
-                        bool binary) = 0;
+  virtual bool SaveFile(const std::string &absolute_file_name,
+                        const std::string &content) = 0;
 
-  bool SaveFile(const char* name, const std::string& buf, bool binary) {
-    return SaveFile(name, buf.c_str(), buf.size(), binary);
-  }
-
-  virtual void Finish() {}
+  virtual bool LoadFile(const std::string &absolute_file_name,
+                        std::string *buf) = 0;
 
  private:
   // Copying is not supported.
-  FileSaver(const FileSaver&) = delete;
-  FileSaver& operator=(const FileSaver&) = delete;
-  // Rule of 5
-  FileSaver(FileSaver&&) = default;
-  FileSaver& operator=(FileSaver&&) = default;
-};
-
-class RealFileSaver final : public FileSaver {
- public:
-  bool SaveFile(const char* name, const char* buf, size_t len,
-                bool binary) final;
-};
-
-class FileNameSaver final : public FileSaver {
- public:
-  bool SaveFile(const char* name, const char* buf, size_t len,
-                bool binary) final;
-
-  void Finish() final;
-
- private:
-  std::set<std::string> file_names_{};
+  FileManager(const FileManager &) = delete;
+  FileManager &operator=(const FileManager &) = delete;
 };
 
 }  // namespace flatbuffers

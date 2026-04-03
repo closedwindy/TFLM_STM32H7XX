@@ -1,30 +1,23 @@
-#pragma once
+//
+// Created by hhw on 2026/4/3.
+//
+#ifndef __AI_PROCESS_H
+#define __AI_PROCESS_H
 
 #include <stdint.h>
-#include "tensorflow/lite/c/common.h"
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
-        TfLiteStatus TFLM_Init();
-
-
-        int8_t Invoke_process(const int8_t* input_data);
-
-
 #endif
 
 
+        int TFLM_Init(void);
 
+        int8_t TFLM_Infer(const int8_t* input_data, size_t input_bytes);
 
 #ifdef __cplusplus
-
-} // extern "C"
+}
 #endif
 
-#ifdef __cplusplus
-#include "tensorflow/lite/micro/micro_interpreter.h"
-#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
-#include "tensorflow/lite/micro/system_setup.h"
-#include "tensorflow/lite/micro/micro_log.h"
-
-#endif
+#endif /* __AI_PROCESS_H */

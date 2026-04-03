@@ -27,9 +27,8 @@ limitations under the License.
 namespace tflite {
 namespace reference_ops {
 
-template <typename T>
-inline void Logistic(const RuntimeShape& input_shape, const T* input_data,
-                     const RuntimeShape& output_shape, T* output_data) {
+inline void Logistic(const RuntimeShape& input_shape, const float* input_data,
+                     const RuntimeShape& output_shape, float* output_data) {
   const float cutoff_upper = 16.619047164916992188f;
   const float cutoff_lower = -9.f;
 
@@ -44,7 +43,7 @@ inline void Logistic(const RuntimeShape& input_shape, const T* input_data,
   // optimized kernels. (check the definition of scalar_logistic_op<float>)
 
   for (int i = 0; i < flat_size; i++) {
-    T val = input_data[i];
+    float val = input_data[i];
     float result;
     if (val > cutoff_upper) {
       result = 1.0f;
@@ -53,7 +52,7 @@ inline void Logistic(const RuntimeShape& input_shape, const T* input_data,
     } else {
       result = 1.f / (1.f + std::exp(-val));
     }
-    output_data[i] = static_cast<T>(result);
+    output_data[i] = result;
   }
 }
 

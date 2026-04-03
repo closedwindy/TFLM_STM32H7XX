@@ -1,4 +1,4 @@
-/* Copyright 2025 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2024 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,42 +46,47 @@ namespace tflite {
 namespace testing {
 namespace {
 
-template <size_t kSize>
 class StackAllocator : public flatbuffers::Allocator {
  public:
-  StackAllocator() : offset_(0) {}
+  StackAllocator(size_t alignment) : data_size_(0) {
+    data_ = AlignPointerUp(data_backing_, alignment);
+  }
 
   uint8_t* allocate(size_t size) override {
-    if (offset_ + size > kSize) {
-      MicroPrintf("allocate(size=%u) full: offset_=%u", size, offset_);
-      TFLITE_ABORT;
-      return nullptr;
-    }
-
-    uint8_t* result = &buffer_[offset_];
-    offset_ += size;
+    TFLITE_DCHECK((data_size_ + size) <= kStackAllocatorSize);
+    uint8_t* result = data_;
+    data_ += size;
+    data_size_ += size;
     return result;
   }
 
   void deallocate(uint8_t* p, size_t) override {}
 
+  static StackAllocator& instance(size_t alignment = 1) {
+    // Avoid using true dynamic memory allocation to be portable to bare metal.
+    static char inst_memory[sizeof(StackAllocator)];
+    static StackAllocator* inst = new (inst_memory) StackAllocator(alignment);
+    return *inst;
+  }
+
+  static constexpr size_t kStackAllocatorSize = 8192;
+
  private:
-  alignas(MicroArenaBufferAlignment()) uint8_t buffer_[kSize];
-  size_t offset_;
+  uint8_t data_backing_[kStackAllocatorSize];
+  uint8_t* data_;
+  int data_size_;
 
   TF_LITE_REMOVE_VIRTUAL_DELETE
 };
 
-template <size_t kSize>
-class ModelBuilderInstance {
- public:
-  ModelBuilderInstance() : builder_(kSize, &allocator_) {}
-  flatbuffers::FlatBufferBuilder& GetBuilder() { return builder_; }
-
- private:
-  StackAllocator<kSize> allocator_;
-  flatbuffers::FlatBufferBuilder builder_;
-};
+flatbuffers::FlatBufferBuilder* BuilderInstance() {
+  static char inst_memory[sizeof(flatbuffers::FlatBufferBuilder)];
+  static flatbuffers::FlatBufferBuilder* inst =
+      new (inst_memory) flatbuffers::FlatBufferBuilder(
+          StackAllocator::kStackAllocatorSize,
+          &StackAllocator::instance(MicroArenaBufferAlignment()));
+  return inst;
+}
 
 // A wrapper around FlatBuffer API to help build model easily.
 class ModelBuilder {
@@ -98,14 +103,13 @@ class ModelBuilder {
   Operator RegisterOp(BuiltinOperator op, const char* custom_code);
 
   // Adds a tensor to the model.
-  Tensor AddTensor(TensorType type,
-                   const std::initializer_list<int32_t> shape) {
+  Tensor AddTensor(TensorType type, std::initializer_list<int32_t> shape) {
     return AddTensorImpl(type, /* is_variable */ false, shape);
   }
 
   // Adds a variable tensor to the model.
   Tensor AddVariableTensor(TensorType type,
-                           const std::initializer_list<int32_t> shape) {
+                           std::initializer_list<int32_t> shape) {
     return AddTensorImpl(type, /* is_variable */ true, shape);
   }
 
@@ -129,7 +133,7 @@ class ModelBuilder {
  private:
   // Adds a tensor to the model.
   Tensor AddTensorImpl(TensorType type, bool is_variable,
-                       const std::initializer_list<int32_t> shape);
+                       std::initializer_list<int32_t> shape);
 
   flatbuffers::FlatBufferBuilder* builder_;
 
@@ -272,9 +276,7 @@ ModelBuilder::Tensor ModelBuilder::AddTensorImpl(
 
 const Model* BuildSimpleStatefulModel() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<2048> builder_instance;
-  flatbuffers::FlatBufferBuilder* fb_builder = &builder_instance.GetBuilder();
-  fb_builder->Clear();
+  flatbuffers::FlatBufferBuilder* fb_builder = BuilderInstance();
 
   ModelBuilder model_builder(fb_builder);
 
@@ -296,9 +298,7 @@ const Model* BuildSimpleStatefulModel() {
 
 const Model* BuildSimpleModelWithBranch() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<1024> builder_instance;
-  flatbuffers::FlatBufferBuilder* fb_builder = &builder_instance.GetBuilder();
-  fb_builder->Clear();
+  flatbuffers::FlatBufferBuilder* fb_builder = BuilderInstance();
 
   ModelBuilder model_builder(fb_builder);
   /* Model structure
@@ -342,9 +342,7 @@ const Model* BuildModelWithOfflinePlanning(int number_of_tensors,
                                            int num_conns,
                                            int num_subgraph_inputs) {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<1024> builder_instance;
-  flatbuffers::FlatBufferBuilder* fb_builder = &builder_instance.GetBuilder();
-  fb_builder->Clear();
+  flatbuffers::FlatBufferBuilder* fb_builder = BuilderInstance();
 
   ModelBuilder model_builder(fb_builder);
 
@@ -369,9 +367,7 @@ const Model* BuildModelWithOfflinePlanning(int number_of_tensors,
 
 const Model* BuildModelWithUnusedInputs() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<1024> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
 
   constexpr size_t buffers_size = 1;
   const Offset<Buffer> buffers[buffers_size] = {CreateBuffer(*builder)};
@@ -437,9 +433,7 @@ const Model* BuildModelWithUnusedInputs() {
 
 const Model* BuildModelWithUnusedOperatorOutputs() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<1024> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
 
   constexpr size_t buffers_size = 1;
   const Offset<Buffer> buffers[buffers_size] = {CreateBuffer(*builder)};
@@ -455,12 +449,12 @@ const Model* BuildModelWithUnusedOperatorOutputs() {
           *builder, builder->CreateVector(tensor_shape, tensor_shape_size),
           TensorType_INT8, 0,
           builder->CreateString("test_unused_output_tensor"), 0, false)};
-  constexpr size_t inputs_size = 0;
-  const int32_t inputs[] = {0};
+  constexpr size_t inputs_size = 1;
+  const int32_t inputs[inputs_size] = {};
   constexpr size_t outputs_size = 1;
   const int32_t outputs[outputs_size] = {0};
-  constexpr size_t operator_inputs_size = 0;
-  const int32_t operator_inputs[] = {0};
+  constexpr size_t operator_inputs_size = 1;
+  const int32_t operator_inputs[operator_inputs_size] = {};
   constexpr size_t operator_outputs_size = 2;
   const int32_t operator_outputs[operator_outputs_size] = {0, 1};
   constexpr size_t operators_size = 1;
@@ -496,9 +490,7 @@ const Model* BuildModelWithUnusedOperatorOutputs() {
 
 const Model* BuildModelWith256x256Tensor() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<1024> builder_instance;
-  flatbuffers::FlatBufferBuilder* fb_builder = &builder_instance.GetBuilder();
-  fb_builder->Clear();
+  flatbuffers::FlatBufferBuilder* fb_builder = BuilderInstance();
 
   ModelBuilder model_builder(fb_builder);
 
@@ -518,9 +510,7 @@ const Model* BuildModelWith256x256Tensor() {
 
 const Model* BuildSimpleMockModel() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<1024> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
 
   constexpr size_t buffer_data_size = 1;
   const uint8_t buffer_data[buffer_data_size] = {21};
@@ -603,9 +593,7 @@ const flatbuffers::span<uint8_t> BuildLutMetadata(
   using flatbuffers::Offset;
   namespace compression = tflite::micro::compression;
 
-  static ModelBuilderInstance<128> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
 
   auto lut_tensor = compression::CreateLutTensor(
       *builder, tensor_index, value_table_buffer_index, bit_width);
@@ -634,9 +622,7 @@ const Model* BuildSimpleMockModelCompressed() {
   auto lut_tensors_span =
       BuildLutMetadata(kWeightsTensor, kValueTableBuffer, kCompressedBitWidth);
 
-  static ModelBuilderInstance<1024> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
 
   // [1, 2, 3, 4, 5, -1, -2, -3, -4, -5, 1, 2, 3, 4, 5]
   const std::initializer_list<uint8_t> weights_data = {0x01, 0x23, 0x45, 0x98,
@@ -712,9 +698,7 @@ const Model* BuildSimpleMockModelCompressed() {
 
 const Model* BuildComplexMockModel() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<2048> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
 
   constexpr size_t buffer_data_size = 1;
   const uint8_t buffer_data_1[buffer_data_size] = {21};
@@ -866,9 +850,7 @@ const Model* BuildComplexMockModel() {
 
 const Model* BuildSimpleMultipleInputsModel() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<1024> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
 
   constexpr size_t buffers_size = 1;
   const Offset<Buffer> buffers[buffers_size] = {
@@ -936,9 +918,7 @@ const Model* BuildSimpleMultipleInputsModel() {
 
 const Model* BuildSimpleModelWithSubgraphsAndIf() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<2048> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
 
   constexpr size_t buffers_size = 1;
   const Offset<Buffer> buffers[buffers_size] = {
@@ -1057,9 +1037,7 @@ const Model* BuildSimpleModelWithSubgraphsAndIf() {
 
 const Model* BuildSimpleModelWithIfAndEmptySubgraph() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<2048> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
 
   constexpr size_t buffers_size = 1;
   const Offset<Buffer> buffers[buffers_size] = {
@@ -1170,9 +1148,7 @@ const Model* BuildSimpleModelWithIfAndEmptySubgraph() {
 
 const Model* BuildSimpleModelWithSubgraphsAndWhile() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<2048> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
 
   constexpr size_t buffers_size = 1;
   const Offset<Buffer> buffers[buffers_size] = {
@@ -1354,9 +1330,7 @@ const Model* BuildSimpleModelWithSubgraphsAndWhile() {
 
 const Model* BuildModelWithIfAndSubgraphInputTensorOverlap() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<2048> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
 
   constexpr TensorType kTensorType = TensorType_INT32;
   constexpr int kBlockSize =
@@ -1515,9 +1489,7 @@ const Model* BuildModelWithIfAndSubgraphInputTensorOverlap() {
 // outputs.
 const Model* BuildSimpleMockModelWithNullInputsOutputs() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<1024> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
 
   constexpr size_t buffers_size = 1;
   const Offset<Buffer> buffers[buffers_size] = {
@@ -1572,25 +1544,6 @@ const Model* BuildSimpleMockModelWithNullInputsOutputs() {
   void* model_pointer = builder->GetBufferPointer();
   const Model* model = flatbuffers::GetRoot<Model>(model_pointer);
   return model;
-}
-
-const Model* BuildNoOpModelWithTensorShape(
-    const std::initializer_list<int32_t>& shape) {
-  using flatbuffers::Offset;
-  static ModelBuilderInstance<512> builder_instance;
-  flatbuffers::FlatBufferBuilder* fb_builder = &builder_instance.GetBuilder();
-  fb_builder->Clear();
-
-  ModelBuilder model_builder(fb_builder);
-
-  // build model with 2 tensor outputs, the first with shape [3, 2]
-  // and the second with the supplied shape.
-  const int op_id = model_builder.RegisterOp(BuiltinOperator_CUSTOM, "no_op");
-  const int tensor_0 = model_builder.AddTensor(TensorType_INT8, {3, 2});
-  const int tensor_1 = model_builder.AddTensor(TensorType_INT8, shape);
-
-  model_builder.AddNode(op_id, {}, {tensor_0, tensor_1}, {});
-  return model_builder.BuildModel({}, {tensor_0, tensor_1});
 }
 
 }  // namespace
@@ -1959,18 +1912,9 @@ const Model* GetSimpleStatefulModel() {
   return model;
 }
 
-const Model* GetNoOpModelWithTensorShape(
-    const std::initializer_list<int32_t>& shape) {
-  // don't cache the model as the tensor shape can be different on each call
-  return const_cast<Model*>(BuildNoOpModelWithTensorShape(shape));
-}
-
 const Tensor* Create1dFlatbufferTensor(int size, bool is_variable) {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<512> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
-
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
   constexpr size_t tensor_shape_size = 1;
   const int32_t tensor_shape[tensor_shape_size] = {size};
   const Offset<Tensor> tensor_offset = CreateTensor(
@@ -1985,10 +1929,7 @@ const Tensor* Create1dFlatbufferTensor(int size, bool is_variable) {
 
 const Tensor* CreateQuantizedFlatbufferTensor(int size) {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<512> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
-
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
   constexpr size_t quant_params_size = 1;
   const float min_array[quant_params_size] = {0.1f};
   const float max_array[quant_params_size] = {0.2f};
@@ -2019,10 +1960,7 @@ const Tensor* CreateQuantizedFlatbufferTensor(int size) {
 
 const Tensor* CreateMissingQuantizationFlatbufferTensor(int size) {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<128> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
-
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
   const Offset<QuantizationParameters> quant_params =
       CreateQuantizationParameters(*builder, 0, 0, 0, 0,
                                    QuantizationDetails_NONE, 0, 0);
@@ -2041,10 +1979,7 @@ const Tensor* CreateMissingQuantizationFlatbufferTensor(int size) {
 const flatbuffers::Vector<flatbuffers::Offset<Buffer>>*
 CreateFlatbufferBuffers() {
   using flatbuffers::Offset;
-  static ModelBuilderInstance<128> builder_instance;
-  flatbuffers::FlatBufferBuilder* builder = &builder_instance.GetBuilder();
-  builder->Clear();
-
+  flatbuffers::FlatBufferBuilder* builder = BuilderInstance();
   constexpr size_t buffers_size = 1;
   const Offset<Buffer> buffers[buffers_size] = {
       CreateBuffer(*builder),
@@ -2118,31 +2053,6 @@ size_t GetModelTensorCount(const Model* model) {
     return (*subgraphs)[0]->tensors()->size();
   }
   return 0;
-}
-
-TfLiteTensor CreateSymmetricPerChannelQuantizedTensorWithoutScaleEstimation(
-    const float* input, int8_t* quantized, TfLiteIntArray* dims, float* scales,
-    int* zero_points, TfLiteAffineQuantization* affine_quant,
-    int quantized_dimension, bool is_variable, TfLiteType tensor_weight_type) {
-  int input_size = ElementCount(*dims);
-  int channel_count = dims->data[quantized_dimension];
-  scales[0] = static_cast<float>(channel_count);
-  zero_points[0] = channel_count;
-
-  SymmetricPerChannelQuantize<int8_t>(input, quantized, input_size,
-                                      channel_count, &scales[1]);
-
-  for (int i = 0; i < channel_count; i++) {
-    zero_points[i + 1] = 0;
-  }
-
-  affine_quant->scale = FloatArrayFromFloats(scales);
-  affine_quant->zero_point = IntArrayFromInts(zero_points);
-  affine_quant->quantized_dimension = quantized_dimension;
-  TfLiteTensor result =
-      CreateTensor(quantized, dims, is_variable, tensor_weight_type);
-  result.quantization = {kTfLiteAffineQuantization, affine_quant};
-  return result;
 }
 
 void PackInt4ValuesDenselyInPlace(uint8_t* src_buffer, int buffer_size) {

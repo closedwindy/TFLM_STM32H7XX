@@ -23,12 +23,13 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "ai_process.h"
+#include "ai_process.h"  // Native API wrapper
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-#include "stdio.h"
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -56,8 +57,7 @@ static void MPU_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-int8_t res=0;
+static int8_t input_buffer[256] = {0};
 /* USER CODE END 0 */
 
 /**
@@ -94,27 +94,48 @@ int main(void)
   MX_GPIO_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_1, GPIO_PIN_SET);
-  TFLM_Init();
 
+  // 1. Initialize Native TFLM API
+  int init_status = TFLM_Init();
+  if (init_status != 0) {
+      printf("TFLM Native Init Error: %d\r\n", init_status);
+      while(1) { HAL_Delay(200); }
+  }
 
-  int8_t a[4]= {125, 120, 115, 110};
+  // 2. Prepare Test Input Data
+  input_buffer[0] = 125;
+  input_buffer[1] = 120;
+  input_buffer[2] = 115;
+  input_buffer[3] = 110;
 
-  HAL_Delay(1000);
-  printf("%d\n",res);
+  printf("=== First Inference (Native API) ===\r\n");
+  int8_t result = TFLM_Infer(input_buffer, 4);
+  printf("Result: %d\r\n", result);
+  printf("\r\n");
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-  while (1)
-  {
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
-  HAL_Delay(1000);
+  while (1) {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    // Loop Test: Decrement input values each iteration
+    for(int i=0; i<4; i++) {
+      input_buffer[i] -= 5;
+    }
+
+    printf("=== Loop Inference ===\r\n");
+    printf("Input: %d, %d, %d, %d\r\n",
+           input_buffer[0], input_buffer[1], input_buffer[2], input_buffer[3]);
+
+    result = TFLM_Infer(input_buffer, 4);
+    printf("Result: %d\r\n\r\n", result);
+
+    // Toggle GPIO to indicate activity
+    HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0);
+    HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }

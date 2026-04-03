@@ -1,4 +1,4 @@
-/* Copyright 2025 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2022 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,12 +24,14 @@ limitations under the License.
 
 namespace tflite {
 
+extern const int kMaxNumberOfAxis;
+extern const int kMaxNumberOfReducedAxis;
+
 struct OpDataReduce {
   int32_t multiplier;
   int shift;
-  int scratch_accumulator_idx;
-  int scratch_resolved_axis_idx;
-  int scratch_input_iter_idx;
+  int temp_buffer_idx;
+  int resolved_axis_idx;
   int input_zp;
   float input_scale;
   int output_zp;
@@ -38,31 +40,25 @@ struct OpDataReduce {
   int num_axis;
 };
 
-TfLiteStatus PrepareMinMaxHelper(TfLiteContext* context, TfLiteNode* node,
-                                 OpDataReduce* op_data);
+TfLiteStatus PrepareMaxHelper(TfLiteContext* context, TfLiteNode* node,
+                              OpDataReduce* op_data);
 
 TfLiteStatus PrepareMeanOrSumHelper(TfLiteContext* context, TfLiteNode* node,
                                     OpDataReduce* op_data);
 
-TfLiteStatus PrepareAllHelper(TfLiteContext* context, TfLiteNode* node,
-                              OpDataReduce* op_data);
-
 TfLiteStatus EvalMaxHelper(TfLiteContext* context, TfLiteNode* node,
-                           OpDataReduce* op_data);
-TfLiteStatus EvalMinHelper(TfLiteContext* context, TfLiteNode* node,
                            OpDataReduce* op_data);
 TfLiteStatus EvalMeanHelper(TfLiteContext* context, TfLiteNode* node,
                             OpDataReduce* op_data);
 TfLiteStatus EvalSumHelper(TfLiteContext* context, TfLiteNode* node,
                            OpDataReduce* op_data);
-TfLiteStatus EvalAllHelper(TfLiteContext* context, TfLiteNode* node,
-                           OpDataReduce* op_data);
+
+void ReduceResolveAxis(const int* axis_data, int axis_count,
+                       MeanParams* op_params);
 
 TFLMRegistration Register_MEAN();
 TFLMRegistration Register_REDUCE_MAX();
-TFLMRegistration Register_REDUCE_MIN();
 TFLMRegistration Register_SUM();
-TFLMRegistration Register_REDUCE_ALL();
 
 }  // namespace tflite
 
