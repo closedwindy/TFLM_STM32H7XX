@@ -40,6 +40,7 @@ int8 Invoke_process(const int8_t* input_data)
 
         if (interpreter.AllocateTensors()!= kTfLiteOk) {
                 return kTfLiteError;
+
         }
         TfLiteTensor* input0 = interpreter.input(0);
         TfLiteTensor* input1 = interpreter.input(1);
