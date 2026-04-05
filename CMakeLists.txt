@@ -65,6 +65,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
+        TF_LITE_STATIC_MEMORY
 )
 
 # Remove wrong libob.a library dependency when using cpp files

@@ -95,10 +95,9 @@ int main(void)
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  // 1. Initialize Native TFLM API
   int init_status = TFLM_Init();
   if (init_status != 0) {
-      printf("TFLM Native Init Error: %d\r\n", init_status);
+      printf("TFLM Init Error: %d\r\n", init_status);
       while(1) { HAL_Delay(200); }
   }
 
@@ -107,8 +106,6 @@ int main(void)
   input_buffer[1] = 120;
   input_buffer[2] = 115;
   input_buffer[3] = 110;
-
-  printf("=== First Inference (Native API) ===\r\n");
   int8_t result = TFLM_Infer(input_buffer, 4);
   printf("Result: %d\r\n", result);
   printf("\r\n");
@@ -126,14 +123,13 @@ int main(void)
       input_buffer[i] -= 5;
     }
 
-    printf("=== Loop Inference ===\r\n");
+
     printf("Input: %d, %d, %d, %d\r\n",
            input_buffer[0], input_buffer[1], input_buffer[2], input_buffer[3]);
 
     result = TFLM_Infer(input_buffer, 4);
     printf("Result: %d\r\n\r\n", result);
 
-    // Toggle GPIO to indicate activity
     HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0);
     HAL_Delay(1000);
   }
